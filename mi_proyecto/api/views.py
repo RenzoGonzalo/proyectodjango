@@ -4,8 +4,10 @@ from django.db.models import Max, Min
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods  # Import added here
 from .models import SensorData, UserProfile
 import json
+from .models import SensorData
 
 @csrf_exempt
 def register_user(request):
@@ -112,3 +114,14 @@ def obtener_valores_extremos(request):
     except Exception as e:
         return JsonResponse({'error': f'Ocurrió un error: {str(e)}'}, status=500)
 
+@csrf_exempt  # Deshabilitar CSRF si es necesario
+@require_http_methods(["DELETE"])  # Asegura que solo se acepte DELETE
+def eliminar_datos_por_id(request, id):  # Ahora capturamos 'id' desde la URL
+    try:
+        # Buscar el registro en la base de datos usando el 'id' desde la URL
+        registro = SensorData.objects.get(id=id)
+        # Eliminar el registro
+        registro.delete()
+        return JsonResponse({'message': 'Registro eliminado correctamente'}, status=200)
+    except SensorData.DoesNotExist:
+        return JsonResponse({'error': 'Registro no encontrado'}, status=404)
