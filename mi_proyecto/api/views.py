@@ -8,6 +8,11 @@ from django.views.decorators.http import require_http_methods  # Import added he
 from .models import SensorData, UserProfile
 import json
 from .models import SensorData
+from datetime import datetime, timedelta
+from django.utils.dateparse import parse_datetime
+from datetime import timedelta
+from django.utils import timezone
+
 
 @csrf_exempt
 def register_user(request):
@@ -85,11 +90,27 @@ def recibir_datos(request):
     return JsonResponse({'error': 'Método no permitido'}, status=405)
 
 def obtener_datos_por_fecha(request):
-    fecha_str = request.GET.get('fecha')
+    fecha_str = request.GET.get('fecha')  # fecha en formato 'YYYY-MM-DD'
     if fecha_str:
-        fecha = parse_datetime(fecha_str)
-        sensor_data = SensorData.objects.filter(readableTime__gte=fecha).values()
-        return JsonResponse(list(sensor_data), safe=False)
+        fecha = parse_datetime(fecha_str)  # Convierte la fecha a datetime
+        if fecha:
+            # Convertir la fecha naive a fecha con zona horaria (si es necesario)
+            fecha = timezone.make_aware(fecha, timezone.get_current_timezone())
+
+            # Definir el rango de la fecha: desde las 00:00:00 hasta las 23:59:59
+            inicio_fecha = fecha.replace(hour=0, minute=0, second=0, microsecond=0)
+            fin_fecha = fecha.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+            # Filtrar los datos que están dentro de ese rango de fecha
+            sensor_data = SensorData.objects.filter(readableTime__range=(inicio_fecha, fin_fecha))
+
+            if not sensor_data.exists():
+                return JsonResponse({'message': 'No hay datos para la fecha proporcionada'}, status=404)
+
+            return JsonResponse(list(sensor_data.values()), safe=False)
+
+        else:
+            return JsonResponse({'error': 'Fecha inválida'}, status=400)
     return JsonResponse({'error': 'Fecha no proporcionada'}, status=400)
 
 def obtener_valores_extremos(request):
